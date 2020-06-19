@@ -38,9 +38,14 @@ func New() *Rm {
 	return RmInstance
 }
 
+// 开始事务（begin）时，生成 tid。
+// 提交事务（begin）时，
+
 func (r *Rm) DoSQL(traceId string, tid string, ltid string, sql string) (trans *RmTrans, err error) {
+
 	util.LogNotice(traceId, "request sql is "+sql)
 
+	//
 	message := &RmTrans{
 		Tid:     tid,
 		Ltid:    ltid,
@@ -48,15 +53,16 @@ func (r *Rm) DoSQL(traceId string, tid string, ltid string, sql string) (trans *
 		DbRes:   nil,
 	}
 
+	// originSql => proxySql
 	sqlProxy, err := proxy.New(sql)
 	if err != nil {
 		return message, err
 	}
 
-	//开启事务，并且全局事务id为""
+	// 开启事务，并且全局事务 id 为 ""
 	if sqlProxy.SQLType == proxy.SQLBegin && tid == "" {
 		util.LogNotice(traceId, "start global transaction.")
-		//生成全局事务id
+		// 生成事务 id
 		uuid, err := uuid2.NewV4()
 		if err != nil {
 			return message, err
@@ -66,19 +72,22 @@ func (r *Rm) DoSQL(traceId string, tid string, ltid string, sql string) (trans *
 		util.LogNotice(traceId, "new tid is "+tid)
 	}
 
-	//commit前请求锁
+	// commit 前请求锁
 	if sqlProxy.SQLType == proxy.SQLCommit {
+
 		getLock := false
 		//请求锁
 		ltid, getLock, err = client.Register(&proto.Path{}, tid, traceId)
 		if err != nil {
 			return message, err
 		}
+
 		//未请求到锁
 		if !getLock {
 			err = errors.New("get lock fail")
 			return message, err
 		}
+
 	}
 
 	res, err := r.Execute(tid, sqlProxy)
@@ -87,7 +96,7 @@ func (r *Rm) DoSQL(traceId string, tid string, ltid string, sql string) (trans *
 	}
 	message.DbRes = res
 
-	//commit/rollback后report
+	// commit/rollback 后 report
 	if sqlProxy.SQLType == proxy.SQLCommit || sqlProxy.SQLType == proxy.SQLRollback {
 		branchStatus := proto.LocalTransactionStatus_COMMITED
 		if sqlProxy.SQLType == proxy.SQLRollback {
@@ -143,11 +152,18 @@ func (r *Rm) insertTransactionLog(sqlP *proxy.SQLProxy, ids []string, beforeCols
 	return nil
 }
 
+// 开始事务（begin）时，生成 tid。
+
 func (r *Rm) Execute(tid string, sqlP *proxy.SQLProxy) (interface{}, error) {
+
 	if sqlP.SQLType == proxy.SQLSelect {
 		return r.selectFromDB(sqlP.OriginSQL)
 	}
+
 	if sqlP.SQLType == proxy.SQLUpdate {
+
+		// ids 主键列表
+		// beforeCols
 		ids, beforeCols, err := r.buildBeforeImage(sqlP.BuildBeforeSelectSQL())
 		if err != nil {
 			return nil, err
@@ -176,6 +192,7 @@ func (r *Rm) Execute(tid string, sqlP *proxy.SQLProxy) (interface{}, error) {
 		}
 		return nil, nil
 	}
+
 	if sqlP.SQLType == proxy.SQLBegin {
 		var err error
 		r.tx, err = r.dbConn.Begin()
@@ -183,6 +200,7 @@ func (r *Rm) Execute(tid string, sqlP *proxy.SQLProxy) (interface{}, error) {
 			return nil, err
 		}
 	}
+
 	if sqlP.SQLType == proxy.SQLCommit {
 		err := r.tx.Commit()
 		if err != nil {
@@ -191,6 +209,7 @@ func (r *Rm) Execute(tid string, sqlP *proxy.SQLProxy) (interface{}, error) {
 		}
 		r.tx = nil
 	}
+
 	if sqlP.SQLType == proxy.SQLRollback {
 		err := r.tx.Rollback()
 		if err != nil {
@@ -199,6 +218,7 @@ func (r *Rm) Execute(tid string, sqlP *proxy.SQLProxy) (interface{}, error) {
 		}
 		r.tx = nil
 	}
+
 	return nil, nil
 }
 

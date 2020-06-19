@@ -39,12 +39,12 @@ func run(index int, wg *sync.WaitGroup) {
 	infoList = append(infoList, info)
 
 	rmInstance := rm.New()
-
 	u3, _ := uuid.NewV4()
 	traceId := u3.String()
-
 	timeStart := time.Now().UnixNano() / 1e6
+
 RETRY:
+
 	res, err := rmInstance.DoSQL(traceId, "", "", "begin;")
 	if err != nil {
 		println("begin error:" + err.Error())

@@ -6,10 +6,10 @@ import (
 )
 
 type Lock struct {
-	appid       string
-	tid         string
-	pLock       *proto.Lock
-	TempListKey string
+	appid       string      // 业务id
+	tid         string      // 事务id
+	pLock       *proto.Lock //
+	TempListKey string      //
 }
 
 func New(appid string, tid string, plock *proto.Lock) *Lock {
@@ -47,6 +47,7 @@ func (l *Lock) ToStr() string {
 
 	Format: tc.appid.tid
 */
+// 本地锁列表：tc.appId.tid
 func (l *Lock) getTempLockListKey() {
 	l.TempListKey = "tc." + l.appid + "." + l.tid
 }
@@ -54,6 +55,7 @@ func (l *Lock) getTempLockListKey() {
 /*
 	LPush lock str to local temp lock list.
 */
+//
 func (l *Lock) setTempLock() error {
 	err := redis.LPush(l.TempListKey, l.ToStr())
 	return err
@@ -64,18 +66,23 @@ func (l *Lock) setTempLock() error {
 	Use redis setNx to simulate global lock.
 */
 func (l *Lock) Lock() (lockSuccess bool, setLockErr error, clearLockErr error) {
+
+	// 尝试加锁
 	success, err := redis.SetNx(l.ToStr(), "1", 0)
 	//set lock error. clear this session all lock.
 	if err != nil {
-		//clear already set lock avoid dead lock.
+		// clear already set lock avoid dead lock.
 		err2 := l.ClearLocks()
 		return false, err, err2
 	}
-	//set lock fail. clear this session all lock.
+
+	// set lock fail. clear this session all lock.
 	if !success {
 		err2 := l.ClearLocks()
 		return false, nil, err2
 	}
+
+	// 加锁成功，添加到本地锁列表
 	if success {
 		err = l.setTempLock()
 		if err != nil {
@@ -93,17 +100,23 @@ func (l *Lock) Lock() (lockSuccess bool, setLockErr error, clearLockErr error) {
 	Todo:This error must take care, it may cause dead lock.
 */
 func (l *Lock) ClearLocks() error {
+
+	// 获取锁列表
 	locks, err := redis.LRange(l.TempListKey, 0, -1)
 	if err != nil {
 		return err
 	}
+
+	// 清除锁
 	for _, v := range locks {
 		err := redis.Del(v)
 		if err != nil {
 			return err
 		}
 	}
-	//clear temp local lock list.
+
+	// clear temp local lock list.
+	// 删除锁列表
 	err = redis.Del(l.TempListKey)
 	if err != nil {
 		return err

@@ -5,8 +5,9 @@ package proto
 
 import (
 	fmt "fmt"
-	proto "github.com/golang/protobuf/proto"
 	math "math"
+
+	proto "github.com/golang/protobuf/proto"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -152,7 +153,7 @@ func (m *StartReply) GetTraceId() string {
 	return ""
 }
 
-//globalCommit，业务方调用，全局提交，只有此事务的发起者才可以发起该请求。
+// globalCommit，业务方调用，全局提交，只有此事务的发起者才可以发起该请求。
 type GlobalCommitRequest struct {
 	RequestPath          *Path    `protobuf:"bytes,1,opt,name=requestPath,proto3" json:"requestPath,omitempty"`
 	Tid                  string   `protobuf:"bytes,2,opt,name=tid,proto3" json:"tid,omitempty"`
@@ -438,7 +439,7 @@ func (m *Lock) GetConnection() string {
 	return ""
 }
 
-//register，RM或TM调用，调用时机为commit之前，请求锁成功后本地commit。注册分支事务，提交需锁的内容，尝试上锁。
+// register，RM 或 TM 调用，调用时机为 commit 之前，请求锁成功后本地 commit 。注册分支事务，提交需锁的内容，尝试上锁。
 type RegisterRequest struct {
 	RequestPath          *Path    `protobuf:"bytes,1,opt,name=requestPath,proto3" json:"requestPath,omitempty"`
 	Tid                  string   `protobuf:"bytes,2,opt,name=tid,proto3" json:"tid,omitempty"`

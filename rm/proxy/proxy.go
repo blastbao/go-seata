@@ -33,12 +33,13 @@ type SQLProxy struct {
 }
 
 func New(sql string) (*SQLProxy, error) {
+
 	proxy := new(SQLProxy)
 	proxy.Connection = "db-user" //todo:改成从配置读取
 	proxy.Database = "user"
 
-	reqSql := strings.TrimSpace(sql)   //去掉双端空格
-	reqSql = strings.Trim(reqSql, ";") //去掉双端分号
+	reqSql := strings.TrimSpace(sql)   // 去掉双端空格
+	reqSql = strings.Trim(reqSql, ";") // 去掉双端分号
 
 	proxy.OriginSQL = reqSql
 	err := proxy.analyseSQLType()
@@ -103,6 +104,7 @@ func (p *SQLProxy) analyseSQLType() error {
 }
 
 func (p *SQLProxy) analyseSQLTable() error {
+
 	// SELECT ... FROM table ....
 	if p.SQLType == SQLSelect {
 		reqSqlSlice := strings.Split(p.OriginSQL, "FROM") //FROM分割
@@ -119,6 +121,7 @@ func (p *SQLProxy) analyseSQLTable() error {
 		}
 		p.TableName = strings.Trim(reqSqlSlice[0], "`") //去除table的`号
 	}
+
 	// UPDATE table SET ....
 	if p.SQLType == SQLUpdate {
 		reqSqlSlice := strings.Split(p.OriginSQL, " ")      //空格分割
@@ -128,6 +131,7 @@ func (p *SQLProxy) analyseSQLTable() error {
 		}
 		p.TableName = strings.Trim(reqSqlSlice[1], "`") //去除table的`号
 	}
+
 	// INSERT INTO table ....
 	if p.SQLType == SQLInsert {
 		reqSqlSlice := strings.Split(p.OriginSQL, " ")      //空格分割
@@ -137,6 +141,7 @@ func (p *SQLProxy) analyseSQLTable() error {
 		}
 		p.TableName = strings.Trim(reqSqlSlice[2], "`") //去除table的`号
 	}
+
 	// DELETE FROM table ....
 	if p.SQLType == SQLDelete {
 		reqSqlSlice := strings.Split(p.OriginSQL, " ")      //空格分割
@@ -146,12 +151,15 @@ func (p *SQLProxy) analyseSQLTable() error {
 		}
 		p.TableName = strings.Trim(reqSqlSlice[2], "`") //去除table的`号
 	}
+
 	return nil
 }
 
 //只需要select可以直接使用的where语句即可
 func (p *SQLProxy) analyseSQLWhere() error {
+
 	p.WhereStr = ""
+
 	//UPDATE table SET ... WHERE ...
 	if p.SQLType == SQLUpdate {
 		reqSqlSlice := strings.Split(p.OriginSQL, "WHERE") //FROM分割
@@ -165,6 +173,7 @@ func (p *SQLProxy) analyseSQLWhere() error {
 		whereStr := strings.TrimSpace(reqSqlSlice[1]) //去掉双端空格
 		p.WhereStr = whereStr
 	}
+
 	//DELETE FROM table WHERE ...
 	if p.SQLType == SQLDelete {
 		reqSqlSlice := strings.Split(p.OriginSQL, "WHERE") //FROM分割
@@ -178,14 +187,17 @@ func (p *SQLProxy) analyseSQLWhere() error {
 		whereStr := strings.TrimSpace(reqSqlSlice[1]) //去掉双端空格
 		p.WhereStr = whereStr
 	}
+
 	return nil
 }
 
 //解析sql修改的字段，目前只有update.todo:新增对insert的支持
 func (p *SQLProxy) analyseSQLChange() error {
 	p.ChangeMap = make(map[string]string)
+
 	//UPDATE table SET ... WHERE ...
 	if p.SQLType == SQLUpdate {
+
 		reqSqlSlice := strings.Split(p.OriginSQL, "SET") //FROM分割
 		if len(reqSqlSlice) < 2 {
 			reqSqlSlice = strings.Split(p.OriginSQL, "set") //from分割
@@ -193,16 +205,19 @@ func (p *SQLProxy) analyseSQLChange() error {
 				return errors.New("analyse update sql set fail. sql is " + p.OriginSQL)
 			}
 		}
+
 		setStr := strings.TrimSpace(reqSqlSlice[1])  //去掉双端空格
 		whereIndex := strings.Index(setStr, "where") //是否有where
 		if whereIndex == -1 {
 			whereIndex = strings.Index(setStr, "WHERE") //是否有WHERE
 		}
+
 		//存在where
 		if whereIndex != -1 {
 			setStr = setStr[0:whereIndex]
 			setStr = strings.TrimSpace(setStr) //去掉双端空格
 		}
+
 		setStrSlice := strings.Split(setStr, ",") //,分割
 		for _, v := range setStrSlice {
 			v = strings.TrimSpace(v)

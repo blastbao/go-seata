@@ -15,8 +15,10 @@ import (
 
 type TcServer struct{}
 
+// 创建本地事务
 func (s *TcServer) Register(ctx context.Context, req *proto.RegisterRequest) (*proto.RegisterReply, error) {
-	//打印trace
+
+	// 打印trace
 	log.New(req.TraceId, "register", req.RequestPath).ToLog()
 
 	firstService := req.RequestPath.Infos[0]
@@ -27,11 +29,11 @@ func (s *TcServer) Register(ctx context.Context, req *proto.RegisterRequest) (*p
 	}
 	lockManager := lock.New(appid, req.Tid, nil)
 
-	//检查锁是否存在
+	// 检查锁是否存在
 	for _, v := range req.Locks {
-		//绑定锁
+		// 绑定锁
 		lockManager.SetPLock(v)
-		//锁结构：连接标记.数据库.表.主键.主键值
+		// 锁结构：连接标记.数据库.表.主键.主键值
 		success, err, err2 := lockManager.Lock()
 		if err != nil {
 			return handleRegError(req.TraceId, consts.LockError, err, "try to lock error.", appid, req.Tid, v)
@@ -39,7 +41,7 @@ func (s *TcServer) Register(ctx context.Context, req *proto.RegisterRequest) (*p
 		if err2 != nil {
 			return handleRegError(req.TraceId, consts.LockError, err2, "clear lock error.", appid, req.Tid, v)
 		}
-		//设置锁失败，锁已存在
+		// 锁已存在，加锁失败，报错
 		if !success {
 			return handleRegError(req.TraceId, consts.SetLockFail, nil, "set lock fail. lock exist.", lockManager.ToStr(), v)
 		}
@@ -56,8 +58,8 @@ func (s *TcServer) Register(ctx context.Context, req *proto.RegisterRequest) (*p
 		return handleRegError(req.TraceId, consts.DBError, nil, "transaction db not found.")
 	}
 
-	//生成分支事务
-	result, err := transactionDB.Exec("INSERT INTO `local_transaction`(tid,appid,name)VALUES (?,?,?)", req.Tid, firstService.Appid, firstService.Name)
+	// 生成分支事务
+	result, err := transactionDB.Exec("INSERT INTO `local_transaction`(tid, appid, name) VALUES (?,?,?)", req.Tid, firstService.Appid, firstService.Name)
 	if err != nil {
 		err2 := lockManager.ClearLocks()
 		if err2 != nil {
@@ -65,6 +67,8 @@ func (s *TcServer) Register(ctx context.Context, req *proto.RegisterRequest) (*p
 		}
 		return handleRegError(req.TraceId, consts.DBError, err, "insert local transaction error.")
 	}
+
+	// 获取事务 id
 	ltid, _ := result.LastInsertId()
 	ltidStr := strconv.FormatInt(ltid, 10)
 

@@ -13,8 +13,10 @@ import (
 	"github.com/orzzzli/orzconfiger"
 )
 
+// 提交事务
 func (s *TcServer) GlobalCommit(ctx context.Context, req *proto.GlobalCommitRequest) (*proto.GlobalCommitReply, error) {
-	//打印trace
+
+	// 打印 trace
 	log.New(req.TraceId, "globalCommit", req.RequestPath).ToLog()
 
 	transactionDB, find := mysql.DBPoolsInstance.GetPool("db-transaction")
@@ -22,21 +24,23 @@ func (s *TcServer) GlobalCommit(ctx context.Context, req *proto.GlobalCommitRequ
 		return handleGcError(req.TraceId, consts.DBError, nil, "transaction db not found.")
 	}
 
-	//检查该事务下的分支事务是否全部完成
+	// 检查该事务下的分支事务是否全部完成
 	var localTransactions []*model.LocalTransaction
 	err := transactionDB.Select(&localTransactions, "SELECT * FROM `local_transaction` where tid = ? and status <> ?", req.Tid, model.LocalTransactionStatusCommitted)
 	if err != nil {
 		return handleGcError(req.TraceId, consts.DBError, err, "select local transaction error.", req.Tid, model.LocalTransactionStatusCommitted)
 	}
+
 	if len(localTransactions) != 0 {
 		return handleGcError(req.TraceId, consts.DBError, nil, "local transactions not all done.", req.Tid)
 	}
 
-	//清除锁
+	// 清除锁
 	appid, find := orzconfiger.GetString("service", "appid")
 	if !find {
 		return handleGcError(req.TraceId, consts.ConfigError, nil, "appid not found.")
 	}
+
 	lockManager := lock.New(appid, req.Tid, nil)
 	err = lockManager.ClearLocks()
 	if err != nil {

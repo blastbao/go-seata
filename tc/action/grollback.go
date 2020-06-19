@@ -16,6 +16,7 @@ import (
 	"github.com/orzzzli/orzconfiger"
 )
 
+// 回滚事务
 func (s *TcServer) GlobalRollback(ctx context.Context, req *proto.GlobalRollbackRequest) (*proto.GlobalRollbackReply, error) {
 	//打印trace
 	log.New(req.TraceId, "globalRollback", req.RequestPath).ToLog()
@@ -31,7 +32,10 @@ func (s *TcServer) GlobalRollback(ctx context.Context, req *proto.GlobalRollback
 		return handleGrError(req.TraceId, consts.DBError, err, "select local transaction error.", req.Tid)
 	}
 
+	// 遍历事务列表，逐个回滚
 	for _, v := range localTransactions {
+
+		// 获取分支事务的回滚地址
 		appid := v.Appid
 		connect, find := orzconfiger.GetString(appid, "connect")
 		if !find {
@@ -40,11 +44,13 @@ func (s *TcServer) GlobalRollback(ctx context.Context, req *proto.GlobalRollback
 
 		log.New(req.TraceId, "globalRollback.begin rollback", connect, req.Tid).ToLog()
 
+		// 执行回滚
 		err := rollback(req.TraceId, connect, req.Tid)
 		if err != nil {
 			return handleGrError(req.TraceId, consts.BusinessError, err, "rollback error.", connect, req.Tid)
 		}
-		//更新分支事务状态
+
+		// 更新分支事务状态
 		_, err = transactionDB.Exec("update `local_transaction` set status = ? where id = ?", model.LocalTransactionStatusRollbacked, v.Id)
 		if err != nil {
 			return handleGrError(req.TraceId, consts.DBError, err, "update local transaction status error.", v.Id)
@@ -53,7 +59,7 @@ func (s *TcServer) GlobalRollback(ctx context.Context, req *proto.GlobalRollback
 		log.New(req.TraceId, "globalRollback.rollback success", connect, req.Tid).ToLog()
 	}
 
-	//清除锁
+	// 清除锁
 	appid, find := orzconfiger.GetString("service", "appid")
 	if !find {
 		return handleGrError(req.TraceId, consts.ConfigError, nil, "get config appid error.", appid)
@@ -65,6 +71,7 @@ func (s *TcServer) GlobalRollback(ctx context.Context, req *proto.GlobalRollback
 	}
 	log.New(req.TraceId, "globalRollback.clear lock success.", lockManager.ToStr()).ToLog()
 
+	// 响应
 	return &proto.GlobalRollbackReply{
 		ReplyInfo: &proto.ReplyInfo{
 			Code:    0,
@@ -75,27 +82,33 @@ func (s *TcServer) GlobalRollback(ctx context.Context, req *proto.GlobalRollback
 }
 
 func rollback(traceId string, connectionStr string, tid string) error {
+
 	oneDB, find := mysql.DBPoolsInstance.GetPool(connectionStr)
 	if !find {
 		err := errors.New(connectionStr + " db not found")
 		return err
 	}
+
 	var logs []*model.TransactionLog
 	err := oneDB.Select(&logs, "SELECT * FROM `transcation_log` where tid = ?", tid)
 	if err != nil {
 		return err
 	}
+
 	for _, v := range logs {
 		sqlType := v.Type
 		table := v.Table
 		primaryK := v.PrimaryKey
 		primaryV := v.PrimaryValue
 		beforeJson := v.BeforeCol
+
 		tempMap := make(map[string]string)
 		err := json.Unmarshal([]byte(beforeJson), &tempMap)
 		if err != nil {
 			return err
 		}
+
+		// 生成回滚 sql
 		undoSql := ""
 		if sqlType == model.TransactionLogTypeInsert {
 			undoSql = "DELETE FROM `" + table + "` WHERE " + primaryK + " = '" + primaryV + "' LIMIT 1;"
@@ -110,6 +123,7 @@ func rollback(traceId string, connectionStr string, tid string) error {
 
 		log.New(traceId, "globalRollback.rollback", undoSql).ToLog()
 
+		// 执行回滚 sql
 		_, err = oneDB.Exec(undoSql)
 		if err != nil {
 			return err

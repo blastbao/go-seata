@@ -8,6 +8,7 @@ const (
 	LocalTransactionStatusRollbacked = 2
 )
 
+// 本地事务
 type LocalTransaction struct {
 	Id        int64  `db:"id"`
 	Tid       string `db:"tid"`

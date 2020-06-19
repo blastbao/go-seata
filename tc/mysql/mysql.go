@@ -3,11 +3,12 @@ package mysql
 import (
 	"errors"
 	"fmt"
+	"log"
+	"time"
+
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	"github.com/orzzzli/orzconfiger"
-	"log"
-	"time"
 )
 
 type DBPools struct {
@@ -20,57 +21,58 @@ func init() {
 	DBPoolsInstance.Pools = make(map[string]*sqlx.DB)
 }
 
-func (p *DBPools) InitPool (name string) error {
-	notFoundError := errors.New("config "+name+" not found.")
-	host, find := orzconfiger.GetString(name,"host")
+// 每个事务 name 对应一个 db 连接池
+func (p *DBPools) InitPool(name string) error {
+	notFoundError := errors.New("config " + name + " not found.")
+	host, find := orzconfiger.GetString(name, "host")
 	if !find {
 		return notFoundError
 	}
-	port, find := orzconfiger.GetString(name,"port")
+	port, find := orzconfiger.GetString(name, "port")
 	if !find {
 		return notFoundError
 	}
-	user, find := orzconfiger.GetString(name,"user")
+	user, find := orzconfiger.GetString(name, "user")
 	if !find {
 		return notFoundError
 	}
-	pass, find := orzconfiger.GetString(name,"pass")
+	pass, find := orzconfiger.GetString(name, "pass")
 	if !find {
 		return notFoundError
 	}
-	database, find := orzconfiger.GetString(name,"database")
+	database, find := orzconfiger.GetString(name, "database")
 	if !find {
 		return notFoundError
 	}
-	maxOpen, find := orzconfiger.GetInt(name,"maxOpen")
+	maxOpen, find := orzconfiger.GetInt(name, "maxOpen")
 	if !find {
 		return notFoundError
 	}
-	maxIdle, find := orzconfiger.GetInt(name,"maxIdle")
+	maxIdle, find := orzconfiger.GetInt(name, "maxIdle")
 	if !find {
 		return notFoundError
 	}
-	maxLife, find := orzconfiger.GetInt(name,"maxLife")
+	maxLife, find := orzconfiger.GetInt(name, "maxLife")
 	if !find {
 		return notFoundError
 	}
 
-	driverStr := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8",user,pass,host,port,database)
-	pool, _ := sqlx.Open("mysql",driverStr)
+	driverStr := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8", user, pass, host, port, database)
+	pool, _ := sqlx.Open("mysql", driverStr)
 	pool.SetMaxOpenConns(maxOpen)
 	pool.SetMaxIdleConns(maxIdle)
 	pool.SetConnMaxLifetime(time.Second * time.Duration(maxLife))
 	err := pool.Ping()
 	if err != nil {
-		log.Fatalf("init db "+name+" error: %v",err)
+		log.Fatalf("init db "+name+" error: %v", err)
 	}
 	p.Pools[name] = pool
 
-	log.Println("DB "+name+" start.")
+	log.Println("DB " + name + " start.")
 	return nil
 }
 
-func (p *DBPools) GetPool (name string) (*sqlx.DB,bool) {
-	pool,find := p.Pools[name]
-	return pool,find
+func (p *DBPools) GetPool(name string) (*sqlx.DB, bool) {
+	pool, find := p.Pools[name]
+	return pool, find
 }
